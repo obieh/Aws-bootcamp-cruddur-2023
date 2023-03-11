@@ -1,7 +1,9 @@
 import './ConfirmationPage.css';
 import React from "react";
 import { useParams } from 'react-router-dom';
-import {ReactComponent as Logo} from '../components/svg/logo.svg';
+import { ReactComponent as Logo } from '../components/svg/logo.svg';
+import { Auth } from 'aws-amplify';
+
 
 // [TODO] Authenication
 import Cookies from 'js-cookie'
@@ -20,47 +22,65 @@ export default function ConfirmationPage() {
   const email_onchange = (event) => {
     setEmail(event.target.value);
   }
-
   const resend_code = async (event) => {
-    console.log('resend_code')
-    // [TODO] Authenication
+    setCognitoErrors('')
+    try {
+      await Auth.resendSignUp(email);
+      console.log('code resent successfully');
+      setCodeSent(true)
+    } catch (err) {
+      // does not return a code
+      // does cognito always return english
+      // for this to be an okay match?
+      console.log(err)
+      if (err.message == 'Username cannot be empty') {
+        setCognitoErrors("You need to provide an email in order to send Resend Activiation Code")
+      } else if (err.message == "Username/client id combination not found.") {
+        setErrors("Email is invalid or cannot be found.")
+      }
+    }
   }
 
   const onsubmit = async (event) => {
     event.preventDefault();
-    console.log('ConfirmationPage.onsubmit')
-    // [TODO] Authenication
-    if (Cookies.get('user.email') === undefined || Cookies.get('user.email') === '' || Cookies.get('user.email') === null){
-      setErrors("You need to provide an email in order to send Resend Activiation Code")   
-    } else {
-      if (Cookies.get('user.email') === email){
-        if (Cookies.get('user.confirmation_code') === code){
-          Cookies.set('user.logged_in',true)
-          window.location.href = "/"
-        } else {
-          setErrors("Code is not valid")
+    setErrors('')
+    try {
+      const { user } = await Auth.signUp({
+        username: email,
+        password: password,
+        attributes: {
+          name: name,
+          email: email,
+          preferred_username: username,
+        },
+        autoSignIn: { // optional - enables auto sign in after user is confirmed
+          enabled: true,
         }
-      } else {
-        setErrors("Email is invalid or cannot be found.")   
-      }
+      });
+      console.log(user);
+      window.location.href = `/confirm?email=${email}`
+    } catch (error) {
+      console.log(error);
+      setCognitoErrors(error.message)
     }
     return false
   }
 
+
   let el_errors;
-  if (errors){
+  if (errors) {
     el_errors = <div className='errors'>{errors}</div>;
   }
 
 
   let code_button;
-  if (codeSent){
+  if (codeSent) {
     code_button = <div className="sent-message">A new activation code has been sent to your email</div>
   } else {
     code_button = <button className="resend" onClick={resend_code}>Resend Activation Code</button>;
   }
 
-  React.useEffect(()=>{
+  React.useEffect(() => {
     if (params.email) {
       setEmail(params.email)
     }
@@ -83,7 +103,7 @@ export default function ConfirmationPage() {
               <input
                 type="text"
                 value={email}
-                onChange={email_onchange} 
+                onChange={email_onchange}
               />
             </div>
             <div className='field text_field code'>
@@ -91,7 +111,7 @@ export default function ConfirmationPage() {
               <input
                 type="text"
                 value={code}
-                onChange={code_onchange} 
+                onChange={code_onchange}
               />
             </div>
           </div>
